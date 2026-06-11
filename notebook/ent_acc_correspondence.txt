@@ -1,0 +1,75 @@
+## Entropy vs Accuracy - Figure 1
+
+### ULIP, sonn_c, obj_only, rotate_2
+581 581                 # len(test_loader) len(test_loader)
+0.588749656925711       # zero-shot ent
+0.42422820917982595     # global ent
+3.831588456486194e-06   # hierar ent
+48.54                   # zero-shot acc
+49.57                   # global acc
+50.95                   # heirar acc
+
+### ULIP-2, scanobjnn, hardest
+2890 2890
+0.6239618546384748
+0.5161622886767394
+4.658582578852733e-11
+47.61
+51.38
+54.98
+
+### OpenShape, modelnet_c, dropout_local_2
+2468 2468
+0.48536727646550953
+0.34432484470058106
+0.0005787112504865848
+73.38
+74.68
+76.26
+
+### Uni3D, omniobject3d_4096pts
+5910 5910
+0.6518472730824364
+0.4611860423587824
+0.00024681549752659783
+42.0
+44.65
+45.6
+
+## Entropy vs Accuracy - Figure 2
+
+### ULIP, sonn_c, obj_only, add_local_2
+581 581
+0.7306837538455156      # zero-shot ent
+0.498802644549544       # global ent
+0.0008959872864828429   # hierar ent
+34.08                   # zero-shot acc
+35.97                   # global acc
+38.04                   # heirar acc
+
+### ULIP-2, modelnet40
+2468 2468
+0.29051284683501316
+0.2061172383157257
+2.273536813210597e-06
+73.01
+74.64
+75.53
+
+### OpenShape, sonn_c, obj_bg, add_global_2
+581 581
+0.7646623774545375
+0.5581055393448864
+0.0003237533106131637
+50.43
+55.77
+58.0
+
+### Uni3D, sonn_c, hardest, rotate_2
+2882 2882
+0.6915098679645646
+0.6033886304971492
+5.783595330371011e-07
+43.41
+46.01
+49.03
