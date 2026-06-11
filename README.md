@@ -69,9 +69,11 @@ In practice, a majority of models remain vulnerable to distribution shifts, such
 ### Datasets
 1. The folder structure of used datasets should be organized as follows.
 ```sh
-    /path/to/Point-Cache
+    /path/to/DPC-Point
     |----data # placed in the same level as `runners`, `scripts`, etc. 
         |----modelnet_c
+        |----modelnet40_c
+        |----shapenet_c
         |----sonn_c
             |----obj_bg
             |----obj_only
@@ -89,9 +91,11 @@ In practice, a majority of models remain vulnerable to distribution shifts, such
 ```
 
 2. You can find the download links of the above datasets from our **huggingface dataset repositories** as follows.
-    - [Link](https://huggingface.co/datasets/auniquesun/Point-PRC/tree/main/new-3ddg-benchmarks/xset/corruption) for `modelnet_c` and `sonn_c`
+    - [Link](https://huggingface.co/datasets/auniquesun/Point-PRC/tree/main/new-3ddg-benchmarks/xset/corruption) for `modelnet_c`, `modelnet40_c`, `shapenet_c`, and `sonn_c`
     - [Link](https://huggingface.co/datasets/auniquesun/Point-PRC/tree/main/new-3ddg-benchmarks/xset/dg) for `omniobject3d`
     - [Link](https://huggingface.co/datasets/auniquesun/Point-Cache/tree/main) for `modelnet40`, `scanobjnn`, and `objaverse_lvis`
+
+Users may either download the datasets manually from the links above and place them under the required `data/` directories, or use the reproducible download and verification scripts in `scripts/download_datasets/`.
 
 ## Usage
 Point-Cache is totally *training-free* and can operate in comparable efficiency with zero-shot inference of large multi-modal 3D models. Users can reproduce the results presented in the paper by directly inferring on the test datasets, as explained below. 
