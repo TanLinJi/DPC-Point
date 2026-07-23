@@ -122,6 +122,8 @@ celerybeat.pid
 
 # Environments
 .env
+.env.*
+!.env.example
 .venv
 env/
 venv/
@@ -161,7 +163,17 @@ cython_debug/
 #.idea/
 
 # project related
-data
-weights
-wandb
-outputs
+data/
+results/
+outputs/
+
+# local model checkpoints
+weights/**/*.bin
+weights/**/*.ckpt
+weights/**/*.pth
+weights/**/*.pt
+weights/**/*.safetensors
+weights/**/*.tar
+weights/**/*.zip
+
+docs/

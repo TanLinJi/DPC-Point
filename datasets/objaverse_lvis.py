@@ -5,7 +5,7 @@ import torch
 from torch.utils.data import Dataset
 
 # NOTE *** Here I just use the default templates from ULIP, it may need to customize for each dataset
-from .templates import text_prompts, o_lvis_gpt35_prompts
+from .templates import text_prompts
 
 
 def pc_normalize(pc):
@@ -141,7 +141,6 @@ class Objaverse_LVIS(Dataset):
         # option 1: use the manual template from `templates.py`
         self.template = text_prompts
         # option 2: use the responses from the LLM
-        # self.template = o_lvis_gpt35_prompts
 
     def __len__(self):
         return len(self.file_list)

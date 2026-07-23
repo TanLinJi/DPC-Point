@@ -4,7 +4,7 @@ import numpy as np
 
 from torch.utils.data import Dataset
 
-from .templates import text_prompts, omni3d_gpt35_prompts
+from .templates import text_prompts
 
 
 def normalize_pc(pc):
@@ -22,10 +22,7 @@ class OmniObject3D(Dataset):
     def __init__(self, cfg):
         self.lm3d = cfg.lm3d
         
-        # option 1: use the manual template from `templates.py`
         self.template = text_prompts
-        # option 2: use the responses from the LLM
-        # self.template = omni3d_gpt35_prompts
 
         self.dataset_dir = cfg.omniobject3d_root
         self.num_points = cfg.npoints

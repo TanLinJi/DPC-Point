@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from .templates import text_prompts, sonn_gpt35_prompts, sonn_gpt4_prompts, sonn_pointllm_prompts
+from .templates import text_prompts
 
 
 def pc_normalize(pc):
@@ -30,12 +30,7 @@ class ScanObjNN(Dataset):
     def __init__(self, config):
         self.lm3d = config.lm3d
         
-        # option 1: use the manual template from `templates.py`
         self.template = text_prompts
-        # option 2: use the responses from the LLM
-        # self.template = sonn_gpt35_prompts
-        # self.template = sonn_gpt4_prompts
-        # self.template = sonn_pointllm_prompts
 
         self.npoints = config.npoints
         self.data_path = config.scanobjnn_root

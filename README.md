@@ -1,223 +1,328 @@
-# Point-Cache
-This repository is the official implementation of the CVPR 2025 paper ["Point-Cache: Test-time Dynamic and Hierarchical Cache for Robust and Generalizable Point Cloud Analysis"](http://arxiv.org/abs/2503.12150).
+# DPC-Point
 
-Official implementation of "DPC-Point: Distribution-Guided Prototype Cache for Robust Point Cloud Test-Time Adaptation"
+Distribution-Constrained Prototype Caching for Point Cloud Test-Time Adaptation
 
-## Overview
-![](assets/architecture.png)
+![DPC-Point Architecture](assets/Architecture.png)
 
-This paper proposes a general solution to enable point cloud recognition models to handle distribution shifts at test time. Unlike prior methods, which rely heavily on training data—often inaccessible during online inference—and are limited to recognizing a fixed set of point cloud classes predefined during training, we explore a more practical and challenging scenario: adapting the model solely based on online test data to recognize both previously seen classes and novel, unseen classes at test time. To this end, we develop **Point-Cache**, a hierarchical cache model that captures essential clues of online test samples, particularly focusing on the global structure of point clouds and their local-part details. Point-Cache, which serves as a rich 3D knowledge base, is dynamically managed to prioritize the inclusion of high-quality samples. Designed as a plug-and-play module, our method can be flexibly integrated into large multimodal 3D models to support open-vocabulary point cloud recognition. Notably, our solution operates with efficiency comparable to zero-shot inference, as it is entirely training-free. Point-Cache demonstrates substantial gains across 8 challenging benchmarks and 4 representative large 3D models, highlighting its effectiveness. 
+## 简介
 
-## Motivation
-![](assets/motivation.png)
+DPC-Point 是一种面向三维视觉语言基础模型的训练无关测试时自适应方法。方法在推理阶段冻结基础模型，通过层级原型缓存、文本语义分布、在线视觉分布以及视觉-语义分布联合一致性评分，对连续到达的测试点云进行预测校准，从而缓解复杂分布偏移下的缓存污染问题。
 
-In recent years, 3D sensors such as LiDARs and RGB-D cameras have been widely adopted in robotics and electric vehicles for their ability to provide reliable 3D geometry measurements. Point clouds are among the most direct data formats produced by these 3D sensors. Although remarkable progress has been made in 3D point cloud recognition, the success is primarily based on the assumption that the test data and the model training data are identically distributed. However, this assumption is frequently violated in real-world scenarios due to complex geometries, as well as sensing and processing errors. 
+当前正式复现代码支持三个骨干网络：
 
-In practice, a majority of models remain vulnerable to distribution shifts, such as out-of-distribution (OOD) samples, data corruptions, and more. As shown in the above figure, notable performance gaps (\eg, 11+\%) occur when models are tested on clean (ModelNet) versus corrupted data (ModelNet-C). And similar observations applies to  ScanObjNN vs. ScanObjNN-C. 
+- ULIP
+- OpenShape
+- Uni3D
 
-## Environment
-### Package Setup
-* [dassl](https://github.com/auniquesun/dassl)
-* Ubuntu 23.10
-* Python 3.8.16
-* PyTorch 1.12.0
-* CUDA 11.6
-* torchvision 0.13.0
-* timm 0.9.16
-* pueue & pueued 2.0.4
+当前正式实验包含四个数据集：
 
-```sh
-  # NOTE The option 1 is recommended. A complete package list is provided in `env.yaml`
-  # option 1: create conda virtual env by your own
-  conda create -n pointcache python=3.8.16
-  codna activate pointcache
-  # install torch
-  pip install torch==1.12.0+cu116 torchvision==0.13.0+cu116 --extra-index-url https://download.pytorch.org/whl/cu116
-  # install dassl
-  git clone https://github.com/auniquesun/dassl
-  cd dassl/
-  python setup.py develop # (no need to re-build if the source code is modified)
+- ModelNet
+- ModelNet-C
+- ScanObjectNN
+- ScanObjectNN-C
 
-  # option 2: create conda virtual env according to the provided env.yaml
-  conda env create -f env.yaml
-  codna activate pointcache
+三维视觉语言基础模型在点云测试数据发生分布偏移时，其视觉特征与类别语义之间的匹配关系易被破坏，导致零样本推理性能下降。为缓解该问题，测试时自适应方法通常利用连续到达的测试样本维护历史缓存，并以此校正预测结果。然而，大多数现有测试时自适应方法仅依赖于熵最小化来获得高置信度的预测，在复杂偏移场景下，一些错误高置信度样本容易进入缓存导致缓存污染。针对该问题，提出一种基于概率分布约束的原型缓存方法 DPC-Point。首先，设计了一种由多种缓存共同组成的层级缓存结构，用于构建具有代表性特征的可靠原型并存储不确定样本的混淆信息。然后，分别从文本语义和视觉特征出发，构建了文本语义分布和在线视觉分布两个互补的高斯分布，其中，文本语义分布由人工设计的类别模板和大语言模型生成的类别补充描述构建，用于为分布偏移下的零样本点云分类提供稳定的语义类别先验；在线视觉分布由层级缓存中被接纳的历史点云原型构建，用于记录测试流中不同类别特征的整体分布及其变化，为识别更可靠的点云原型提供视觉层面的依据。在此基础上，根据这两个分布设计了一个由视觉-语义分布一致性评分约束的原型缓存更新算法，用于和预测熵共同参与层级缓存的更新，使视觉-语义分布所反映的类别整体信息与可靠原型缓存所保留的历史特征共同参与后续样本的预测校正，从而减少缓存污染并提升复杂偏移下模型的整体性能。在多个数据集的实验结果表明，DPC-Point 能够有效提升多种三维视觉语言基础模型在几何扰动与真实扫描分布偏移条件下的零样本推理性能，验证了所提方法的有效性和鲁棒性。
+
+## 复现步骤
+
+以下命令默认在项目根目录执行。
+
+完整复现的推荐顺序如下：
+
+```bash
+conda env create -f environment.yml
+conda activate dpcp
+
+bash scripts/download/download_data_all.sh
+
+python weights/download_openshape_weights.py --variant vitg14
+python weights/download_uni3d_weights.py --with-task-ckpts
+
+# ULIP 权重需要从 README 中给出的官方链接下载，并放到 weights/ulip/ 默认路径。
+
+bash scripts/zero_shot/run_all.sh 0
+bash scripts/dpc_point/run_all.sh 0
 ```
 
-`pueue` is a shell command management software, we use it for scheduling the model training & evaluation tasks, please refer to the [official page](https://github.com/Nukesor/pueue) for installation and basic usage. We recommend this tool because under its help you can run the experiments at scale thus save your time.
+### 1. 安装环境
 
-**NOTE:** We provide a complete package list of our virtual environment in `env.yaml`. Feel free to check whether you need a specific package. If it is the case, run the following command to install it, _e.g._ 
-```sh
-  pip install h5py==3.10.0 plyfile==1.0.3
+推荐直接使用完整 Conda 环境文件：
+
+```bash
+conda env create -f environment.yml
+conda activate dpcp
 ```
 
-### Pre-trained Weights
-1. In the experiments, we use the following models as the baselines. The pre-trained weights of these models can be found in their public GitHub repositories. 
-    * [ULIP](https://huggingface.co/datasets/auniquesun/Point-PRC/tree/main/pretrained-weights/ulip)
-    * [ULIP-2](https://huggingface.co/datasets/auniquesun/Point-PRC/tree/main/pretrained-weights/ulip-2)
-    * [OpenShape](https://github.com/Colin97/OpenShape_code/)
-    * [Uni3D](https://github.com/baaivision/Uni3D)
+如果已经有兼容的 Python、CUDA 和 PyTorch 环境，也可以只安装 pip 依赖：
 
-    - **NOTE:** 
-        1. ULIP-2 uses the same [text encoder](https://huggingface.co/datasets/auniquesun/Point-PRC/tree/main/pretrained-weights/ulip/image-text-encoder) as ULIP
-        2. For OpenShape, we use the [pointbert-vitg14-rgb](https://huggingface.co/OpenShape/openshape-pointbert-vitg14-rgb/tree/main) version
-            - For text encoder in OpenShape, we use [CLIP-ViT-bigG-14-laion2B-39B-b160k](https://huggingface.co/laion/CLIP-ViT-bigG-14-laion2B-39B-b160k) from **huggingface laion**
-        3. For Uni3D, we use the [uni3d-g](https://huggingface.co/BAAI/Uni3D/tree/main/modelzoo/uni3d-g) version
-            - For text encoder in Uni3D, we use [eva02_enormous_patch14_plus_clip_224.laion2b_s9b_b144k](https://huggingface.co/timm/eva02_enormous_patch14_plus_clip_224.laion2b_s9b_b144k) from **huggingface timm**
-
-2. Make a folder called `weights` under this project and save the pre-trained weights into this folder. 
-
-### Datasets
-1. The folder structure of used datasets should be organized as follows.
-```sh
-    /path/to/DPC-Point
-    |----data # placed in the same level as `runners`, `scripts`, etc. 
-        |----modelnet_c
-        |----modelnet40_c
-        |----shapenet_c
-        |----sonn_c
-            |----obj_bg
-            |----obj_only
-            |----hardest
-        |----modelnet40
-        |----scanobjnn
-        |----omniobject3d
-            |----1024
-            |----4096
-            |----16384
-        |----objaverse_lvis
-    |----runners
-    |----scripts
-    ...
+```bash
+conda create -n dpcp python=3.9 -y
+conda activate dpcp
+pip install -r requirements.txt
 ```
 
-2. You can find the download links of the above datasets from our **huggingface dataset repositories** as follows.
-    - [Link](https://huggingface.co/datasets/auniquesun/Point-PRC/tree/main/new-3ddg-benchmarks/xset/corruption) for `modelnet_c`, `modelnet40_c`, `shapenet_c`, and `sonn_c`
-    - [Link](https://huggingface.co/datasets/auniquesun/Point-PRC/tree/main/new-3ddg-benchmarks/xset/dg) for `omniobject3d`
-    - [Link](https://huggingface.co/datasets/auniquesun/Point-Cache/tree/main) for `modelnet40`, `scanobjnn`, and `objaverse_lvis`
+实验环境主要版本如下：
 
-Users may either download the datasets manually from the links above and place them under the required `data/` directories, or use the reproducible download and verification scripts in `scripts/download_datasets/`.
+- Python 3.9
+- PyTorch 1.12.0
+- CUDA 11.6
+- torchvision 0.13.0
+- timm 0.9.16
+- open-clip-torch 2.24.0
 
-## Usage
-Point-Cache is totally *training-free* and can operate in comparable efficiency with zero-shot inference of large multi-modal 3D models. Users can reproduce the results presented in the paper by directly inferring on the test datasets, as explained below. 
+### 2. 准备数据集
 
-### General instructions
-1. To evaluate the performances of a large 3D model (_e.g.,_ Uni3D) on a specific dataset (_e.g.,_ ModelNet-C), you will use script files like 
-    - `scripts/eval_zs_infer.sh`
-    - `scripts/eval_model_with_global_cache.sh`
-    - `scripts/eval_model_with_hierarchical_caches.sh`. 
+DPC-Point 只使用 ModelNet、ModelNet-C、ScanObjectNN 和 ScanObjectNN-C。干净数据集与扰动数据集放在同一个目录中：ModelNet 使用 `data/modelnet_c/clean.h5`，ScanObjectNN 使用 `data/sonn_c/hardest/clean.h5`。
 
-2. Each script has a number of input arguments, as illustrated in corresponding file. 
-    - Use `scripts/eval_zs_infer.sh` to produce the *zero-shot* results of large 3D models.
-    - Use `scripts/eval_model_with_global_cache.sh` to produce the results of large 3D models with our _global_ cache. 
-    - Use `scripts/eval_model_with_hierarchical_caches.sh` to produce the results of large 3D models with our _hierarchical_ cache. 
+官方下载地址和本仓库脚本如下：
 
-3. Users need to check the script files and the project code to understand the meaning of all used arguments for accurate usage. The definition and usage of these arguments follow a regular pattern and are easy to understand.
-    - _Take it easy!_
+| 数据集 | 官方链接 | 下载脚本 |
+| --- | --- | --- |
+| ModelNet / ModelNet-C | [Point-PRC modelnet_c](https://huggingface.co/datasets/auniquesun/Point-PRC/tree/main/new-3ddg-benchmarks/xset/corruption/modelnet_c) | `python scripts/download/download_data_modelnet_c.py` |
+| ScanObjectNN / ScanObjectNN-C | [Point-PRC sonn_c](https://huggingface.co/datasets/auniquesun/Point-PRC/tree/main/new-3ddg-benchmarks/xset/corruption/sonn_c) | `python scripts/download/download_data_scanobjectnn_c.py` |
 
-4. In the following, we present several examples to explain the usage and reproduce the results of the paper. 
+一键下载正式实验所需数据：
 
-### Robustness evaluation on _ModelNet-C_
-1. This part corresponds to the experiments in Section 4.2 (Table 1). 
+```bash
+bash scripts/download/download_data_all.sh
+```
 
-2. Taking **ULIP-2** with `global cache` as an example, to get the results on ModelNet-C, you can run the following command. 
-    ```sh
-    ./scripts/eval_model_with_global_cache.sh 0 ulip weights/ulip/pointbert_ulip2.pt modelnet_c obj_only add_global_2 1024 vitg14 ulip2 global so_obj_only_9
-    ```
-    - Explanations to the command-line arguments
-        - `0` indexes the GPU id to run the experiment
-        - `ulip` means the large 3D model is chosen from [ULIP, ULIP-2]
-        - `weights/ulip/pointbert_ulip2.pt` is the path to pretrained weights to the large 3D model
-        - `modelnet_c` is the dataset name
-        - `add_global_2` is one of 7 corruption types in ModelNet-C, other options are
-            - `add_local_2`
-            - `dropout_global_2`
-            - `dropout_local_2`
-            - `rotate_2`
-            - `scale_2`
-            - `jitter_2`
-        - `1024` indicates the number of points for each point cloud object
-        - `ulip2` specifies the ulip version, options are 
-            - `ulip1`
-            - `ulip2`
-        - `global` decides the cache type, options are
-            - `global`
-            - `hierarchical`
-        - **NOTE:** arguments not mentoined here do not affect the running results, users can check the script file and code for details
+脚本默认使用 Hugging Face 镜像：
 
-3. You can get the results of other large 3D models by replacing the argument `ulip` with other values, _e.g.,_
-    - `ulip` $\rightarrow$ `openshape`
-    - `ulip` $\rightarrow$ `uni3d`
-    - **NOTE:** also remember to replace other arguments related to this large 3D model
+```bash
+https://hf-mirror.com
+```
 
-4. You can get the results of other cache types by replacing the argument `global` with other values, _e.g.,_
-    - `global` $\rightarrow$ `hierarchical`
-    - **NOTE:** also remember to replace other arguments related to this cache type
+如果需要使用 Hugging Face 官方站点：
 
-### Robustness evaluation on _ScanObjNN-C_
-1. This part corresponds to the experiments in Section 8.1 (Table 5, 6, and 7). 
+```bash
+HF_ENDPOINT=https://huggingface.co bash scripts/download/download_data_all.sh
+```
 
-2. Taking **OpenShape** with `hierarchical cache` as an example, to get the results on _ScanObjNN-C (the obj\_only split)_, you can run the following command. 
-    ```sh
-    ./scripts/eval_model_with_hierarchical_caches.sh 0 openshape weights/openshape/openshape-pointbert-vitg14-rgb/model.pt sonn_c obj_only rotate_2 1024 vitg14 ulip2 hierarchial so_obj_only_9
-    ```
-    - **NOTE:**
-        1. `obj_only` indicates the split of _ScanObjNN-C_, feel free to change to other options
-            - obj_bg
-            - hardest
-        2. Users need to check the script file to figure out the meaning of other command-line arguments. Generally, they follow the same/similar usage as those arguments in [Robustness evaluation on _ModelNet-C_](#robustness-evaluation-on-modelnet-c)
+也可以分别下载：
 
-3. You can get the results of other large 3D models by replacing the argument `openshape` with other values, _e.g.,_
-    - `openshape` $\rightarrow$ `ulip`
-    - `openshape` $\rightarrow$ `uni3d`
-    - **NOTE:** also remember to replace other arguments related to this large 3D model
+```bash
+python scripts/download/download_data_modelnet.py
+python scripts/download/download_data_modelnet_c.py
+python scripts/download/download_data_scanobjectnn.py
+python scripts/download/download_data_scanobjectnn_c.py
+```
 
-4. You can get the results of other cache types by replacing the argument `hierarchical` with other values, _e.g.,_
-    - `hierarchical` $\rightarrow$ `global`
-    - **NOTE:** also remember to replace other arguments related to this cache type
+下载完成后，数据目录应满足：
 
-### Generalization evaluation on _a dataset suite_
-1. This part corresponds to the experiments in Section 4.2 (Table 2). 
+```text
+DPC-Point/
+  data/
+    modelnet_c/
+      shape_names.txt
+      clean.h5
+      add_global_0.h5
+      add_global_1.h5
+      ...
+      scale_4.h5
+    sonn_c/
+      shape_names.txt
+      hardest/
+        clean.h5
+        add_global_0.h5
+        add_global_1.h5
+        ...
+        scale_4.h5
+```
 
-2. Taking Uni3D with `zero-shot inference` as an example, to get the results on _OmniObject3D (16384 points)_, you can run the following command. 
-    ```sh
-    ./scripts/eval_zs_infer.sh 0 uni3d weights/uni3d/model.pt omniobject3d obj_only add_global_2 16384 vitg14 ulip2 global so_obj_only_9
-    ```
-    - **NOTE:**
-        1. `omniobject3d` is the dataset name, feel free to change to other options in _the dataset suite_
-            - modelnet40
-            - scanobjnn
-            - objaverse_lvis
-        2. Remember to to replace other arguments related to the used dataset 
-        3. Users need to check the script file to figure out the meaning of other command-line arguments
+ModelNet-C 和 ScanObjectNN-C 均包含 7 类扰动：`add_global`、`add_local`、`dropout_global`、`dropout_local`、`jitter`、`rotate`、`scale`。`all35` 表示 7 类扰动乘以 5 个扰动等级。
 
-3. You can get the results of other large 3D models by replacing the argument `uni3d` with other values, _e.g.,_
-    - `uni3d` $\rightarrow$ `ulip`
-    - `uni3d` $\rightarrow$ `openshape`
-    - **NOTE:** also remember to replace other arguments related to this large 3D model
+### 3. 准备预训练权重
 
-4. You can refer to `scripts/eval_model_with_global_cache.sh` and `scripts/eval_model_with_hierarchical_caches.sh` on how to obtain the results of large 3D models with global/hierarchical cache.
+所有权重都放在项目根目录下的 `weights/` 中。默认路径如下：
 
-## Citation
-1. If you find our paper and code are helpful for your project or research, please cite our work as follows.  
-    ```bibtex
-      @inproceedings{sun25pointcache,
-          title={Point-Cache: Test-time Dynamic and Hierarchical Cache for Robust and Generalizable Point Cloud Analysis},
-          author={Sun, Hongyu and Ke, Qiuhong and Cheng, Ming and Wang, Yongcai and Li, Deying and Gou, Chenhui and Cai, Jianfei},
-          booktitle={2025 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
-          year={2025},
-          pages={1263-1275},
-          doi={10.1109/CVPR52734.2025.00126}
-      }
-    ```
+| 骨干网络 | 官方链接 | 默认文件 |
+| --- | --- | --- |
+| ULIP | [Point-PRC ULIP weights](https://huggingface.co/datasets/auniquesun/Point-PRC/tree/main/pretrained-weights/ulip) | `weights/ulip/slip_base_100ep.pt`, `weights/ulip/pointbert_ulip1.pt` |
+| OpenShape | [OpenShape pointbert-vitg14-rgb](https://huggingface.co/OpenShape/openshape-pointbert-vitg14-rgb), [CLIP ViT-bigG-14](https://huggingface.co/laion/CLIP-ViT-bigG-14-laion2B-39B-b160k) | `weights/openshape/open_clip_pytorch_model/vit-bigG-14/laion2b_s39b_b160k.bin`, `weights/openshape/openshape-pointbert-vitg14-rgb/model.pt` |
+| Uni3D | [BAAI Uni3D](https://huggingface.co/BAAI/Uni3D/tree/main/modelzoo/uni3d-g), [EVA02 text encoder](https://huggingface.co/timm/eva02_enormous_patch14_plus_clip_224.laion2b_s9b_b144k) | `weights/uni3d/open_clip_pytorch_model/laion2b_s9b_b144k.bin`, `weights/uni3d/modelnet40/model.pt`, `weights/uni3d/scanobjnn/model.pt` |
 
-## Acknowledgement
-Our implementation is partially inspired by the following projects, thanks to their great work.
+OpenShape 和 Uni3D 可直接使用仓库脚本下载：
 
-1. [Dassl](https://github.com/KaiyangZhou/Dassl.pytorch)
-2. [ULIP](https://github.com/salesforce/ULIP)
-3. [OpenShape](https://github.com/ZrrSkywalker/PointCLIP)
-4. [Uni3D](https://github.com/yangyangyang127/PointCLIP_V2)
-5. [TDA](https://github.com/kdiAAA/TDA)
+```bash
+python weights/download_openshape_weights.py --variant vitg14
+python weights/download_uni3d_weights.py --with-task-ckpts
+```
 
-## Contact
-If you have any question about our work, please search related issues or create a new one in this repository.
+ULIP 目前需要从上表链接下载后放到默认路径。最终目录示例：
+
+```text
+DPC-Point/
+  weights/
+    ulip/
+      slip_base_100ep.pt
+      pointbert_ulip1.pt
+    openshape/
+      open_clip_pytorch_model/
+        vit-bigG-14/
+          laion2b_s39b_b160k.bin
+      openshape-pointbert-vitg14-rgb/
+        model.pt
+    uni3d/
+      open_clip_pytorch_model/
+        laion2b_s9b_b144k.bin
+      modelnet40/
+        model.pt
+      scanobjnn/
+        model.pt
+```
+
+### 4. 准备文本模板和可选 LLM 配置
+
+正式代码将文本模板放在：
+
+```text
+text_templates/
+  handcrafted/
+    original_handcrafted.json
+    pointcloud_depth_view.json
+  llm_supplement/
+    modelnet_c_deepseek_deepseek-v4-pro_multiview_2d3d_10_prompts.json
+    sonn_c_deepseek_deepseek-v4-pro_multiview_2d3d_10_prompts.json
+```
+
+默认推理使用手工模板和 LLM 生成描述的融合文本特征。如果上述 LLM 描述 JSON 已经存在，复现实验不需要 API key。
+
+只有在需要重新生成 LLM 描述时，才需要在项目根目录创建 `.env`：
+
+```text
+API_KEY=sk-xxx
+BASE_URL=https://api.deepseek.com
+MODEL=deepseek-v4-pro
+PROVIDER=deepseek
+TEMPERATURE=0.3
+```
+
+代码通过 `python-dotenv` 读取 `.env`。`API_KEY` 不会写入实验配置文件。
+
+### 5. 运行 zero-shot 基线
+
+运行单个骨干网络和单个数据集：
+
+```bash
+bash scripts/zero_shot/run_common.sh ulip modelnet_c 0 --severities 2
+```
+
+顺序运行一个骨干网络在四个数据集上的 zero-shot 结果：
+
+```bash
+bash scripts/zero_shot/run_ulip.sh 0
+bash scripts/zero_shot/run_openshape.sh 0
+bash scripts/zero_shot/run_uni3d.sh 0
+```
+
+顺序运行三个骨干网络在四个数据集上的 zero-shot 结果：
+
+```bash
+bash scripts/zero_shot/run_all.sh 0
+```
+
+其中 `0` 表示 GPU 编号。使用 CPU 时可写成：
+
+```bash
+bash scripts/zero_shot/run_common.sh ulip modelnet cpu
+```
+
+### 6. 运行 DPC-Point
+
+运行单个骨干网络和单个数据集：
+
+```bash
+bash scripts/dpc_point/run_common.sh uni3d scanobjectnn_c 0 --severity-set s2
+```
+
+运行单个骨干网络在四个数据集上的 DPC-Point 结果：
+
+```bash
+bash scripts/dpc_point/run_ulip.sh 0
+bash scripts/dpc_point/run_openshape.sh 0
+bash scripts/dpc_point/run_uni3d.sh 0
+```
+
+完整复现三个骨干网络在四个数据集上的 DPC-Point 结果：
+
+```bash
+bash scripts/dpc_point/run_all.sh 0
+```
+
+扰动数据集的常用设置：
+
+```bash
+# 只跑 severity=2
+bash scripts/dpc_point/run_common.sh uni3d modelnet_c 0 --severity-set s2
+
+# 跑 7 类扰动 x 5 个等级
+bash scripts/dpc_point/run_common.sh uni3d modelnet_c 0 --severity-set all35
+
+# 只跑某几个扰动
+bash scripts/dpc_point/run_common.sh uni3d scanobjectnn_c 0 --severity-set s2 --corruptions rotate,add_global
+```
+
+`scripts/dpc_point/run_*.sh` 会自动设置正式实验使用的数据集列表和推理配置。固定超参数会完整写入每次实验的 `config.json`，屏幕输出只保留当前实验身份、实时进度和 OA 结果。
+
+## 输出文件
+
+zero-shot 结果保存到：
+
+```text
+results/zero_shot/<experiment_name>/
+```
+
+DPC-Point 结果保存到：
+
+```text
+results/dpc_point/<experiment_name>/
+```
+
+DPC-Point 每个实验目录包含：
+
+- `run.log`: 屏幕输出的完整日志
+- `summary.csv`: 每个数据集任务的 OA 结果
+- `config.json`: 本次实验的完整配置，包括数据集、骨干网络、文本模板、缓存容量、分布参数和最终得分权重
+
+屏幕进度示例：
+
+```text
+DPC-Point formal inference
+run_dir: results/dpc_point/uni3d_scanobjectnn_c_hardest_s2
+backbone: uni3d
+dataset: scanobjectnn_c
+severity_set: s2
+tasks: 7
+------------------------------------------------------------
+Running task: ScanObjectNN-C rotate_2
+[cache] dataset=scanobjectnn_c, corruption=rotate_2, batch=1/2882, OA=37.50
+[cache] dataset=scanobjectnn_c, corruption=rotate_2, batch=144/2882, OA=42.36
+[infer] dataset=scanobjectnn_c, corruption=rotate_2, batch=144/2882, OA=48.61
+Final OA: 50.21
+Result: dataset=ScanObjectNN-C, corruption=rotate_2, OA=50.21
+```
+
+## 项目结构
+
+```text
+DPC-Point/
+  assets/                 方法架构图
+  configs/                数据集和模型配置
+  datasets/               数据集读取和类别名称
+  models/                 ULIP、OpenShape、Uni3D 模型定义
+  runners/
+    zero_shot.py          zero-shot 推理入口
+    dpc_point/            DPC-Point 推理、缓存、分布和任务定义
+  scripts/
+    download/             数据集下载脚本
+    zero_shot/            zero-shot 运行脚本
+    dpc_point/            DPC-Point 运行脚本
+  text_templates/         手工模板和 LLM 描述
+  utils/                  公共配置、模型加载、指标和下载工具
+  weights/                权重下载脚本和本地权重文件
+```
+
+## 致谢
+
+本仓库的复现组织和评测协议参考了 [Point-Cache](https://github.com/auniquesun/Point-Cache)。同时感谢 ULIP、OpenShape、Uni3D、OpenCLIP、CLIP 和 Dassl 等开源项目。

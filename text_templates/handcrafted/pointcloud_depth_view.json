@@ -1,0 +1,7 @@
+{
+  "name": "pointcloud_depth_view",
+  "description": "Handcrafted point-cloud depth-view prompt template.",
+  "templates": [
+    "a point cloud depth map of a(n) {}."
+  ]
+}

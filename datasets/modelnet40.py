@@ -6,7 +6,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from .templates import text_prompts, mn40_gpt35_prompts, mn40_gpt4_prompts, mn40_pointllm_prompts
+from .templates import text_prompts
 
 
 def pc_normalize(pc):
@@ -31,12 +31,7 @@ def normalize_pc(pc):
 class ModelNet40(Dataset):
     def __init__(self, config):
         self.lm3d = config.lm3d
-        # option 1: use the manual template from `templates.py`
         self.template = text_prompts
-        # option 2: use the responses from the LLM
-        # self.template = mn40_gpt35_prompts
-        # self.template = mn40_gpt4_prompts
-        # self.template = mn40_pointllm_prompts
 
         self.npoints = config.npoints
         self.data_path = config.modelnet40_root
